@@ -1,0 +1,5 @@
+# Ignore Conda environment files
+.ipynb_checkpoints/
+finetuned_gpt2/
+.DS_Store
+.env 
