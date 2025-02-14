@@ -86,40 +86,40 @@ def run(args, parser):
     config = args.config
     checkpoint_dir = os.path.dirname(args.checkpoint)
 
-    # Step 1: Look for params.json in checkpoint_dir
-    config_path = os.path.join(checkpoint_dir, "params.json")
+    # Step 1: Look for *.tune_metadata in checkpoint_dir
     metadata_files = glob.glob(os.path.join(checkpoint_dir, "*.tune_metadata"))
 
-    if not (os.path.exists(config_path) and len(metadata_files) > 0):
+    if not metadata_files:  # If no tune_metadata files are found, check subdirectories
         # Step 2: Check in subdirectories (checkpoint_*)
         checkpoint_dirs = glob.glob(os.path.join(checkpoint_dir, "checkpoint_*"))
 
-        # Extract checkpoint numbers and find the highest one
+        # Extract checkpoint numbers and find the highest one with *.tune_metadata
         valid_checkpoints = []
         for chkpt in checkpoint_dirs:
             chkpt_num = chkpt.split("_")[-1]
             if chkpt_num.isdigit():
-                params_file = os.path.join(chkpt, "params.json")
-                if os.path.exists(params_file):
-                    valid_checkpoints.append((int(chkpt_num), params_file, chkpt))
+                tune_metadata_files = glob.glob(os.path.join(chkpt, "*.tune_metadata"))
+                if tune_metadata_files:
+                    valid_checkpoints.append((int(chkpt_num), chkpt))
 
         # Sort by highest checkpoint number and choose the latest one
         if valid_checkpoints:
             valid_checkpoints.sort(reverse=True, key=lambda x: x[0])
-            _, config_path, highest_checkpoint_dir = valid_checkpoints[0]
+            _, highest_checkpoint_dir = valid_checkpoints[0]
             checkpoint_dir = highest_checkpoint_dir  # ✅ Ensure checkpoint_dir points to checkpoint_XXX
             print("✅ Updated checkpoint_dir to: {}".format(checkpoint_dir))
+        else:
+            raise ValueError("❌ Could not find any checkpoint with *.tune_metadata in the directory or subdirectories.")
 
-    # If still no params.json, raise an error
-    if not os.path.exists(config_path):
-        raise ValueError("❌ Could not find params.json in the checkpoint dir or any child directories.")
-
-    # Step 3: Load configuration
-    with open(config_path) as f:
-        config = json.load(f)
-
-    if "num_workers" in config:
-        config["num_workers"] = 0  # Force single-threaded execution
+    # Step 3: Load configuration from params.json (if available)
+    config_path = os.path.join(checkpoint_dir, "params.json")
+    if os.path.exists(config_path):
+        with open(config_path) as f:
+            config = json.load(f)
+        if "num_workers" in config:
+            config["num_workers"] = 0  # Force single-threaded execution
+    else:
+        print("⚠️ Warning: params.json not found. Using default config.")
 
     # Step 4: Set environment
     if not args.env:
@@ -136,17 +136,16 @@ def run(args, parser):
 
     checkpoint_path = checkpoint_dir
 
-    # Step 6: Find the correct tune_metadata file
-    if os.path.isdir(checkpoint_path):
-        metadata_files = glob.glob(os.path.join(checkpoint_path, "*.tune_metadata"))
-        
-        if metadata_files:
-            metadata_file = metadata_files[0]  # Pick the first one found
-            checkpoint_file = metadata_file.replace(".tune_metadata", "")
-            print("✅ Found checkpoint: {}".format(checkpoint_file))
-            checkpoint_path = checkpoint_file
-        else:
-            raise FileNotFoundError("❌ No .tune_metadata file found in {}".format(checkpoint_path))
+    # Step 6: Find the correct *.tune_metadata file
+    metadata_files = glob.glob(os.path.join(checkpoint_path, "*.tune_metadata"))
+    
+    if metadata_files:
+        metadata_file = metadata_files[0]  # Pick the first one found
+        checkpoint_file = metadata_file.replace(".tune_metadata", "")
+        print("✅ Found checkpoint: {}".format(checkpoint_file))
+        checkpoint_path = checkpoint_file
+    else:
+        raise FileNotFoundError("❌ No *.tune_metadata file found in {}".format(checkpoint_path))
 
     # Restore using the correct checkpoint path
     agent.restore(checkpoint_path)
