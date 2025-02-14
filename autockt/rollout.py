@@ -106,7 +106,7 @@ def run(args, parser):
         if valid_checkpoints:
             valid_checkpoints.sort(reverse=True, key=lambda x: x[0])
             _, config_path, highest_checkpoint_dir = valid_checkpoints[0]
-            checkpoint_dir = highest_checkpoint_dir  # ✅ Ensure checkpoint_dir points to checkpoint_XXX
+            checkpoint_dir = os.path.dirname(config_path)  # ✅ Ensure checkpoint_dir points to checkpoint_XXX
             print("✅ Updated checkpoint_dir to: {}".format(checkpoint_dir))
 
     # If still no params.json, raise an error
