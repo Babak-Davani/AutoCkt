@@ -132,7 +132,7 @@ def run(args, parser):
     cls = get_agent_class(args.run)
     agent = cls(env=args.env, config=config)
 
-    checkpoint_path = args.checkpoint
+    checkpoint_path = checkpoint_dir
 
     # Step 6: Find the correct tune_metadata file
     if os.path.isdir(checkpoint_path):
