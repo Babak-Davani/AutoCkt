@@ -105,8 +105,9 @@ def run(args, parser):
         # Sort by highest checkpoint number and choose the latest one
         if valid_checkpoints:
             valid_checkpoints.sort(reverse=True, key=lambda x: x[0])
-            _, config_path, checkpoint_dir = valid_checkpoints[0]
-            print("✅ Found params.json in highest checkpoint: {}".format(checkpoint_dir))
+            _, config_path, highest_checkpoint_dir = valid_checkpoints[0]
+            checkpoint_dir = highest_checkpoint_dir  # ✅ Ensure checkpoint_dir points to checkpoint_XXX
+            print("✅ Updated checkpoint_dir to: {}".format(checkpoint_dir))
 
     # If still no params.json, raise an error
     if not os.path.exists(config_path):
