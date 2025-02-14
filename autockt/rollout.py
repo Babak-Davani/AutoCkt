@@ -7,7 +7,6 @@ from __future__ import print_function
 import argparse
 import json
 import os
-import glob
 import pickle
 import IPython
 import numpy as np
@@ -84,73 +83,31 @@ def create_parser(parser_creator=None):
 
 def run(args, parser):
     config = args.config
-    checkpoint_dir = os.path.dirname(args.checkpoint)
-
-    # Step 1: Look for *.tune_metadata in checkpoint_dir
-    metadata_files = glob.glob(os.path.join(checkpoint_dir, "*.tune_metadata"))
-
-    if not metadata_files:  # If no tune_metadata files are found, check subdirectories
-        # Step 2: Check in subdirectories (checkpoint_*)
-        checkpoint_dirs = glob.glob(os.path.join(checkpoint_dir, "checkpoint_*"))
-
-        # Extract checkpoint numbers and find the highest one with *.tune_metadata
-        valid_checkpoints = []
-        for chkpt in checkpoint_dirs:
-            chkpt_num = chkpt.split("_")[-1]
-            if chkpt_num.isdigit():
-                tune_metadata_files = glob.glob(os.path.join(chkpt, "*.tune_metadata"))
-                if tune_metadata_files:
-                    valid_checkpoints.append((int(chkpt_num), chkpt))
-
-        # Sort by highest checkpoint number and choose the latest one
-        if valid_checkpoints:
-            valid_checkpoints.sort(reverse=True, key=lambda x: x[0])
-            _, highest_checkpoint_dir = valid_checkpoints[0]
-            checkpoint_dir = highest_checkpoint_dir  # ✅ Ensure checkpoint_dir points to checkpoint_XXX
-            print("✅ Updated checkpoint_dir to: {}".format(checkpoint_dir))
-        else:
-            raise ValueError("❌ Could not find any checkpoint with *.tune_metadata in the directory or subdirectories.")
-
-    # Step 3: Load configuration from params.json (if available)
-    config_path = os.path.join(checkpoint_dir, "params.json")
-    if os.path.exists(config_path):
+    if not config:
+        # Load configuration from file
+        config_dir = os.path.dirname(args.checkpoint)
+        config_path = os.path.join(config_dir, "params.json")
+        if not os.path.exists(config_path):
+            config_path = os.path.join(config_dir, "../params.json")
+        if not os.path.exists(config_path):
+            raise ValueError(
+                "Could not find params.json in either the checkpoint dir or "
+                "its parent directory.")
         with open(config_path) as f:
             config = json.load(f)
         if "num_workers" in config:
-            config["num_workers"] = 0  # Force single-threaded execution
-    else:
-        print("⚠️ Warning: params.json not found. Using default config.")
+            config["num_workers"] = 0#min(2, config["num_workers"])
 
-    # Step 4: Set environment
     if not args.env:
         if not config.get("env"):
             parser.error("the following arguments are required: --env")
         args.env = config.get("env")
 
-    # Initialize Ray
     ray.init()
 
-    # Step 5: Get the agent class and restore from the correct checkpoint
     cls = get_agent_class(args.run)
     agent = cls(env=args.env, config=config)
-
-    checkpoint_path = checkpoint_dir
-
-    # Step 6: Find the correct *.tune_metadata file
-    metadata_files = glob.glob(os.path.join(checkpoint_path, "*.tune_metadata"))
-    
-    if metadata_files:
-        metadata_file = metadata_files[0]  # Pick the first one found
-        checkpoint_file = metadata_file.replace(".tune_metadata", "")
-        print("✅ Found checkpoint: {}".format(checkpoint_file))
-        checkpoint_path = checkpoint_file
-    else:
-        raise FileNotFoundError("❌ No *.tune_metadata file found in {}".format(checkpoint_path))
-
-    # Restore using the correct checkpoint path
-    agent.restore(checkpoint_path)
-
-    # Step 7: Start the rollout process
+    agent.restore(args.checkpoint)
     num_steps = int(args.steps)
     rollout(agent, args.env, num_steps, args.out, args.no_render)
 
