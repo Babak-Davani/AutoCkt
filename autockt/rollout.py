@@ -106,7 +106,7 @@ def run(args, parser):
         if valid_checkpoints:
             valid_checkpoints.sort(reverse=True, key=lambda x: x[0])
             _, config_path, checkpoint_dir = valid_checkpoints[0]
-            print(f"✅ Found params.json in highest checkpoint: {checkpoint_dir}")
+            print("✅ Found params.json in highest checkpoint: {}".format(checkpoint_dir))
 
     # If still no params.json, raise an error
     if not os.path.exists(config_path):
@@ -141,10 +141,10 @@ def run(args, parser):
         if metadata_files:
             metadata_file = metadata_files[0]  # Pick the first one found
             checkpoint_file = metadata_file.replace(".tune_metadata", "")
-            print(f"✅ Found checkpoint: {checkpoint_file}")
+            print("✅ Found checkpoint: {}".format(checkpoint_file))
             checkpoint_path = checkpoint_file
         else:
-            raise FileNotFoundError(f"❌ No .tune_metadata file found in {checkpoint_path}")
+            raise FileNotFoundError("❌ No .tune_metadata file found in {}".format(checkpoint_path))
 
     # Restore using the correct checkpoint path
     agent.restore(checkpoint_path)
