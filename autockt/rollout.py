@@ -88,8 +88,9 @@ def run(args, parser):
 
     # Step 1: Look for params.json in checkpoint_dir
     config_path = os.path.join(checkpoint_dir, "params.json")
+    metadata_files = glob.glob(os.path.join(checkpoint_dir, "*.tune_metadata"))
 
-    if not os.path.exists(config_path):
+    if not (os.path.exists(config_path) and len(metadata_files) > 0):
         # Step 2: Check in subdirectories (checkpoint_*)
         checkpoint_dirs = glob.glob(os.path.join(checkpoint_dir, "checkpoint_*"))
 
@@ -133,11 +134,9 @@ def run(args, parser):
     cls = get_agent_class(args.run)
     agent = cls(env=args.env, config=config)
 
-    checkpoint_path = checkpoint_dir
-
     # Step 6: Find the correct tune_metadata file
-    if os.path.isdir(checkpoint_path):
-        metadata_files = glob.glob(os.path.join(checkpoint_path, "*.tune_metadata"))
+    if os.path.isdir(checkpoint_dir):
+        metadata_files = glob.glob(os.path.join(checkpoint_dir, "*.tune_metadata"))
         
         if metadata_files:
             metadata_file = metadata_files[0]  # Pick the first one found
