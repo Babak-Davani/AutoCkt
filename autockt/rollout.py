@@ -134,9 +134,11 @@ def run(args, parser):
     cls = get_agent_class(args.run)
     agent = cls(env=args.env, config=config)
 
+    checkpoint_path = checkpoint_dir
+
     # Step 6: Find the correct tune_metadata file
-    if os.path.isdir(checkpoint_dir):
-        metadata_files = glob.glob(os.path.join(checkpoint_dir, "*.tune_metadata"))
+    if os.path.isdir(checkpoint_path):
+        metadata_files = glob.glob(os.path.join(checkpoint_path, "*.tune_metadata"))
         
         if metadata_files:
             metadata_file = metadata_files[0]  # Pick the first one found
