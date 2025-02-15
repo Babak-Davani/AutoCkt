@@ -111,7 +111,7 @@ def run(args, parser):
     
     checkpoint_path = args.checkpoint
 
-    Check if the checkpoint path is a directory and find the actual checkpoint file
+    #Check if the checkpoint path is a directory and find the actual checkpoint file
     if os.path.isdir(checkpoint_path):
         metadata_files = glob.glob(os.path.join(checkpoint_path, "*.tune_metadata"))
         
