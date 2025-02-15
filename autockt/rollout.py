@@ -7,6 +7,8 @@ from __future__ import print_function
 import argparse
 import json
 import os
+import re
+import glob
 import pickle
 import IPython
 import numpy as np
@@ -83,20 +85,44 @@ def create_parser(parser_creator=None):
 
 def run(args, parser):
     config = args.config
-    if not config:
-        # Load configuration from file
-        config_dir = os.path.dirname(args.checkpoint)
-        config_path = os.path.join(config_dir, "params.json")
-        if not os.path.exists(config_path):
-            config_path = os.path.join(config_dir, "../params.json")
-        if not os.path.exists(config_path):
-            raise ValueError(
-                "Could not find params.json in either the checkpoint dir or "
-                "its parent directory.")
-        with open(config_path) as f:
-            config = json.load(f)
-        if "num_workers" in config:
-            config["num_workers"] = 0#min(2, config["num_workers"])
+    checkpoint_path = args.checkpoint
+
+    # Step 1: Identify checkpoint directory pattern (checkpoint_122, checkpoint_123, etc.)
+    checkpoint_dir = os.path.dirname(checkpoint_path)
+    checkpoint_parent_dir = os.path.dirname(checkpoint_dir)
+
+    # Regex pattern to match "checkpoint_<number>"
+    checkpoint_pattern = re.compile(r"checkpoint_(\d+)")
+
+    # Check if the current checkpoint_path matches the expected pattern
+    if not checkpoint_pattern.search(os.path.basename(checkpoint_dir)):
+        # Step 2: Find the highest-numbered checkpoint_* in the child directory
+        checkpoint_dirs = glob.glob(os.path.join(checkpoint_parent_dir, "checkpoint_*"))
+        checkpoint_numbers = [
+            (int(re.search(r"checkpoint_(\d+)", d).group(1)), d)
+            for d in checkpoint_dirs if re.search(r"checkpoint_(\d+)", d)
+        ]
+
+        if checkpoint_numbers:
+            # Step 3: Sort and pick the highest-numbered checkpoint
+            highest_checkpoint = max(checkpoint_numbers, key=lambda x: x[0])[1]
+            print("🔍 Found highest checkpoint: {}".format(highest_checkpoint))
+            checkpoint_path = highest_checkpoint
+
+    # Step 4: Check for params.json in the selected checkpoint directory
+    config_path = os.path.join(checkpoint_path, "params.json")
+    if not os.path.exists(config_path):
+        config_path = os.path.join(os.path.dirname(checkpoint_path), "params.json")
+    
+    if not os.path.exists(config_path):
+        raise ValueError("Could not find params.json in either the checkpoint dir or its parent directory.")
+    
+    # Step 5: Load Configuration
+    with open(config_path) as f:
+        config = json.load(f)
+    
+    if "num_workers" in config:
+        config["num_workers"] = 0  # Minimize number of workers
 
     if not args.env:
         if not config.get("env"):
@@ -107,7 +133,24 @@ def run(args, parser):
 
     cls = get_agent_class(args.run)
     agent = cls(env=args.env, config=config)
-    agent.restore(args.checkpoint)
+
+    # Step 6: Look for .tune_metadata inside the checkpoint directory
+    if os.path.isdir(checkpoint_path):
+        metadata_files = glob.glob(os.path.join(checkpoint_path, "*.tune_metadata"))
+        
+        if metadata_files:
+            # Pick the first found .tune_metadata file
+            metadata_file = metadata_files[0]
+            # Extract the correct checkpoint file path from metadata filename
+            checkpoint_path = metadata_file.replace(".tune_metadata", "")
+
+            print("✅ Found checkpoint: {}".format(checkpoint_path))
+        else:
+            raise FileNotFoundError("❌ No .tune_metadata file found in {}".format(checkpoint_path))
+
+    # Step 7: Restore using the correct path
+    agent.restore(checkpoint_path)
+
     num_steps = int(args.steps)
     rollout(agent, args.env, num_steps, args.out, args.no_render)
 
